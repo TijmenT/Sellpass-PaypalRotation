@@ -94,7 +94,7 @@ const checkCount = (message, DBPool) => {
 }
 
 const changePaypal = (message, DBPool) => {
-  const email = "DO.NOT.SEND.TO.THIS.MAIL@fake.com"
+  const email = "DO.NOT.SEND.TO.THIS.MAIL@fake.com" // Needs to be a function that selects a mail that wasn't selected before
 
   if (!email) {
     return message.channel.send('No email');
@@ -110,7 +110,7 @@ const changePaypal = (message, DBPool) => {
       },
       {
         headers: {
-          Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjI2NjciLCJleHAiOjE3MDQ2MTY4NTR9.-dFrd0wNcy9gnpXPo6qbZ2UG7Nr_Iltb1X8SWt_JXfI'
+          Authorization: `Bearer ${process.env.KEY}`
         }
       }
     )
