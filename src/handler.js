@@ -28,7 +28,7 @@ const saleDetected = (message, DBPool) => {
     addSaletoCount(message, amount, DBPool)
     setTimeout(() => {    
     checkCount(message, DBPool)
-    }, 3000);
+    }, 5000);
   }
 };
 
@@ -79,29 +79,27 @@ const checkCount = (message, DBPool) => {
         }
 
         const totalAmount = results[0].totalAmount || 0;
-        sentMessage.edit(`Total: ${totalAmount}`);
+        sentMessage.edit(`Total today: ${totalAmount}`);
 
-        if(totalAmount > 75){
-          sentMessage.edit(`Changing paypal`);
+        if(totalAmount > process.env.SwitchOnAmount){
           setTimeout(() => {
-            changePaypal(message, DBPool)
+            selectNewPaypal(message, DBPool)
           }, 2000);
         }
         connection.release();
       });
     });
   });
-}
+} 
 
-const changePaypal = (message, DBPool) => {
-  const email = "DO.NOT.SEND.TO.THIS.MAIL@fake.com" // Needs to be a function that selects a mail that wasn't selected before
+const changePaypal = (message, DBPool, email) => {
 
   if (!email) {
     return message.channel.send('No email');
   } else {
 
     axios.put(
-      'https://dev.sellpass.io/self/2978/settings/payments/paypal-ff',
+      `https://dev.sellpass.io/self/${process.env.SHOP}/settings/payments/paypal-ff`,
       {
         'email': email,
         'gatewayRules': {
@@ -118,7 +116,9 @@ const changePaypal = (message, DBPool) => {
       if (res.data.message == "Successfully saved PayPal F&F Settings") {
         message.channel.send(`Changed to ${email}`);
         // client.channels.cache.get(`channel id`).send(`changed paypal to: ${email}`); Log when it changed mail if you want
-        return;
+        setTimeout(() => {
+          resetTodayCount(message, DBPool)
+        }, 2000);
       } else {
         message.channel.send(`Could not change PayPal mail`);
         return console.log(`${res.data.message}`);
@@ -130,6 +130,60 @@ const changePaypal = (message, DBPool) => {
       return console.log(err);
     });
   }
+
+};
+
+const selectNewPaypal = (message, DBPool) => {
+  const selectRandomSql = "SELECT mail FROM paypals WHERE IsUsed = 0 ORDER BY RAND() LIMIT 1";
+  const updateSql = "UPDATE paypals SET IsUsed = CASE WHEN mail = ? THEN 1 ELSE 0 END";
+
+  DBPool.getConnection(async function (err, connection) {
+    if (err) {
+      console.log('MySQL: Pool connection error: ' + err);
+      return message.channel.send('Could not connect to the database');
+    }
+
+    connection.query(selectRandomSql, async (selectErr, results) => {
+      if (selectErr || results.length === 0) {
+        console.error("Error selecting new PayPal:", selectErr?.message);
+        return message.channel.send('Could not select a new PayPal email');
+      }
+
+      const newPaypalEmail = results[0].mail;
+
+      connection.query(updateSql, [newPaypalEmail], (updateErr) => {
+        if (updateErr) {
+          console.error("Error updating PayPal status:", updateErr.message);
+          return message.channel.send('Could not update PayPal email status');
+        }
+        connection.release();
+        setTimeout(() => {
+        changePaypal(message, DBPool, newPaypalEmail)
+        }, 5000);
+      });
+    });
+  });
+};
+
+const resetTodayCount = (message, DBPool) => {
+  const truncateSql = "TRUNCATE TABLE amountCount";
+
+  DBPool.getConnection(async function (err, connection) {
+    if (err) {
+      console.log('MySQL: Pool connection error: ' + err);
+      return message.channel.send('Could not connect to the database');
+    }
+
+    connection.query(truncateSql, (truncateErr) => {
+      if (truncateErr) {
+        console.error("Error truncating amountCount table:", truncateErr.message);
+        return message.channel.send('Could not truncate amountCount table');
+      }
+
+      message.channel.send(`Count has been reset to 0`);
+      connection.release();
+    });
+  });
 };
 
 

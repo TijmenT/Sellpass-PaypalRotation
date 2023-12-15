@@ -10,7 +10,6 @@ client.once('ready', () => {
 });
 
 client.on('messageCreate', message => {
-
     if (message.author.username != "Sellpass Notifications") return;
     try {
         if (message.embeds.length > 0) {
